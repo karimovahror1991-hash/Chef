@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ВКУСНЫЙ АССИСТЕНТ</string>
+    <string name="title_activity_main">ВКУСНЫЙ АССИСТЕНТ</string>
+    <string name="package_name">com.chefassistant.app</string>
+    <string name="custom_url_scheme">com.chefassistant.app</string>
+</resources>
