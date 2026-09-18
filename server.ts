@@ -154,7 +154,7 @@ ${preferences ? `Пожелания/ограничения: ${preferences}` : ''
 
     const response = await Promise.race([
       ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model:'gemini-3.6-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -206,7 +206,7 @@ ${contextRecipe ? `Контекст текущего блюда: "${contextRecip
 4. Совет шефа на будущее.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       contents: prompt,
     });
 
@@ -246,7 +246,7 @@ app.post('/api/gemini/lab-copy', async (req, res) => {
 {"title":"...","description":"..."}`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       contents: prompt,
       config: { responseMimeType: 'application/json' },
     });
@@ -315,7 +315,7 @@ ${ingredientsRaw}
 }`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
