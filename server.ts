@@ -152,20 +152,21 @@ ${preferences ? `Пожелания/ограничения: ${preferences}` : ''
   }
 }`;
 
-    const response = await Promise.race([
-      ai.models.generateContent({
-        model:'gemini-3.6-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-        },
-      }),
-      new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('AI не ответил за 90 секунд')), 90000);
-      }),
-    ]);
+    const interaction = await Promise.race([
+  ai.interactions.create({
+    model: 'gemini-3.6-flash',
+    input: prompt,
+    response_format: {
+      type: 'text',
+      mime_type: 'application/json',
+    },
+  }),
+  new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error('AI не ответил за 90 секунд')), 90000);
+  }),
+]);
 
-    const text = response.text;
+const text = interaction.output_text;
     if (!text) {
       throw new Error('Пустой ответ от модели');
     }
@@ -205,12 +206,12 @@ ${contextRecipe ? `Контекст текущего блюда: "${contextRecip
 3. Точные пропорции, замены или температурные режимы при необходимости.
 4. Совет шефа на будущее.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: prompt,
-    });
+    const interaction = await ai.interactions.create({
+  model: 'gemini-3.6-flash',
+  input: prompt,
+});
 
-    const answer = response.text?.trim();
+const answer = interaction.output_text?.trim();
     if (!answer) {
       throw new Error('Шеф не вернул ответ. Попробуйте повторить вопрос.');
     }
@@ -245,12 +246,15 @@ app.post('/api/gemini/lab-copy', async (req, res) => {
 Верни только JSON без markdown:
 {"title":"...","description":"..."}`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: prompt,
-      config: { responseMimeType: 'application/json' },
-    });
-    const text = response.text?.trim();
+    const interaction = await ai.interactions.create({
+  model: 'gemini-3.6-flash',
+  input: prompt,
+  response_format: {
+    type: 'text',
+    mime_type: 'application/json',
+  },
+});
+const text = interaction.output_text?.trim();
     if (!text) throw new Error('AI не вернул название и описание');
     const parsed = JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim());
     if (typeof parsed.title !== 'string' || typeof parsed.description !== 'string' || !parsed.title.trim() || !parsed.description.trim()) {
@@ -314,13 +318,14 @@ ${ingredientsRaw}
   "technologyNotes": "Рекомендации по приготовлению, терморежимам и хранению"
 }`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
-    });
+    const interaction = await ai.interactions.create({
+  model: 'gemini-3.6-flash',
+  input: prompt,
+  response_format: {
+    type: 'text',
+    mime_type: 'application/json',
+  },
+});
 
     const data = JSON.parse(response.text || '{}');
     res.json({ techCard: data });
