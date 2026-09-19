@@ -16,7 +16,17 @@ const pool = new Pool({
   connectionString: env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
-
+// Отправка сообщения в Telegram
+async function sendTelegramMessage(chatId: number, text: string) {
+  const botToken = env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) return;
+  
+  await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' })
+  });
+}
 // Создаём таблицы при старте
 async function initDatabase() {
   try {
@@ -245,7 +255,33 @@ app.post('/api/telegram-webhook', async (req, res) => {
         [message.from.id, message.from.username || null, message.from.first_name || null]
       );
     }
-    
+        // Обработка команды /admin
+    if (message?.text === '/admin' && message.from.id === 988368940) {
+      const totalResult = await pool.query('SELECT COUNT(*) FROM bot_users');
+      const premiumResult = await pool.query(
+        'SELECT COUNT(*) FROM subscriptions WHERE expires_at > $1',
+        [Date.now()]
+      );
+      const usersResult = await pool.query(
+        'SELECT user_id, username, first_name, last_interaction FROM bot_users ORDER BY last_interaction DESC LIMIT 10'
+      );
+      
+      const total = totalResult.rows[0].count;
+      const premium = premiumResult.rows[0].count;
+      
+      let text = `📊 <b>Статистика</b>\n\n`;
+      text += `👥 Всего пользователей: <b>${total}</b>\n`;
+      text += `⭐ Premium: <b>${premium}</b>\n\n`;
+      text += `<b>Последние 10:</b>\n`;
+      
+      usersResult.rows.forEach((u, i) => {
+        const name = u.username ? `@${u.username}` : u.first_name || 'Без имени';
+        const date = new Date(u.last_interaction).toLocaleString('ru-RU');
+        text += `${i + 1}. ${name} (ID: <code>${u.user_id}</code>) — ${date}\n`;
+      });
+      
+      await sendTelegramMessage(message.from.id, text);
+    }
     // Обработка оплаты
     if (message?.successful_payment) {
       const payment = message.successful_payment;
