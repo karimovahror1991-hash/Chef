@@ -48,7 +48,67 @@ async function initDatabase() {
         last_interaction TIMESTAMP DEFAULT NOW()
       )
     `);
-    
+        // Таблица конкурсов
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS battles (
+        id SERIAL PRIMARY KEY,
+        theme TEXT,
+        started_at TIMESTAMP DEFAULT NOW(),
+        ends_at TIMESTAMP,
+        status TEXT DEFAULT 'active',
+        winner_entry_id INTEGER,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Таблица блюд-участников
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS battle_entries (
+        id SERIAL PRIMARY KEY,
+        battle_id INTEGER REFERENCES battles(id),
+        user_id BIGINT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        photo_url TEXT,
+        votes INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Таблица голосов за блюда
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS battle_votes (
+        id SERIAL PRIMARY KEY,
+        entry_id INTEGER REFERENCES battle_entries(id),
+        user_id BIGINT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(entry_id, user_id)
+      )
+    `);
+
+    // Таблица голосов за дату окончания
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS battle_date_votes (
+        id SERIAL PRIMARY KEY,
+        battle_id INTEGER REFERENCES battles(id),
+        user_id BIGINT NOT NULL,
+        days INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(battle_id, user_id)
+      )
+    `);
+
+    // Таблица рейтинга поваров
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS chef_ratings (
+        user_id BIGINT PRIMARY KEY,
+        username TEXT,
+        first_name TEXT,
+        points INTEGER DEFAULT 0,
+        wins INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
     console.log('✅ База данных готова');
   } catch (error) {
     console.error('❌ Ошибка инициализации БД:', error);
@@ -151,7 +211,7 @@ app.post('/api/create-subscription-invoice', async (req, res) => {
         description: 'Все AI-функции без ограничений',
         payload: `sub_${userId}_${Date.now()}`,
         currency: 'XTR',
-        prices: [{ label: 'Premium', amount: 250 }],
+        prices: [{ label: 'Premium', amount: 100 }],
         subscription_period: 2592000
       })
     });
@@ -232,6 +292,182 @@ app.get('/api/users-list', async (req, res) => {
       'SELECT user_id, username, first_name, last_interaction FROM bot_users ORDER BY last_interaction DESC'
     );
     
+// Текущий конкурс
+app.get('/api/battle/current', async (req, res) => {
+  try {
+    const userId = Number(req.query.userId) || 0;
+    
+    // Находим активный конкурс
+    let battleResult = await pool.query(
+      "SELECT * FROM battles WHERE status = 'active' ORDER BY id DESC LIMIT 1"
+    );
+    
+    // Если нет активного — создаём новый
+    if (battleResult.rows.length === 0) {
+      const newBattle = await pool.query(
+        "INSERT INTO battles (theme, ends_at) VALUES ($1, $2) RETURNING *",
+        ['Блюдо дня', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)]
+      );
+      battleResult = { rows: newBattle.rows } as any;
+    }
+    
+    const battle = battleResult.rows[0];
+    
+    // Получаем блюда-участники
+    const entriesResult = await pool.query(
+      `SELECT e.id, e.title, e.description, e.photo_url, 
+              COUNT(v.id) as vote_count
+       FROM battle_entries e
+       LEFT JOIN battle_votes v ON v.entry_id = e.id
+       WHERE e.battle_id = $1
+       GROUP BY e.id
+       ORDER BY vote_count DESC, e.created_at ASC`,
+      [battle.id]
+    );
+    
+    // Проверяем, голосовал ли уже пользователь
+    let userVotes: number[] = [];
+    if (userId) {
+      const votesResult = await pool.query(
+        'SELECT entry_id FROM battle_votes WHERE user_id = $1 AND entry_id IN (SELECT id FROM battle_entries WHERE battle_id = $2)',
+        [userId, battle.id]
+      );
+      userVotes = votesResult.rows.map(r => r.entry_id);
+    }
+    
+    // Голоса за дату окончания
+    const dateVotesResult = await pool.query(
+      `SELECT days, COUNT(*) as count FROM battle_date_votes 
+       WHERE battle_id = $1 GROUP BY days ORDER BY count DESC`,
+      [battle.id]
+    );
+    
+    res.json({
+      battle: {
+        id: battle.id,
+        theme: battle.theme,
+        endsAt: battle.ends_at,
+      },
+      entries: entriesResult.rows,
+      userVotes,
+      dateVotes: dateVotesResult.rows,
+    });
+  } catch (error: any) {
+    console.error('Battle error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Предложить блюдо
+app.post('/api/battle/submit', async (req, res) => {
+  try {
+    const { userId, title, description } = req.body;
+    
+    if (!userId || !title) {
+      return res.status(400).json({ error: 'Укажите название блюда' });
+    }
+    
+    const battleResult = await pool.query(
+      "SELECT id FROM battles WHERE status = 'active' ORDER BY id DESC LIMIT 1"
+    );
+    
+    if (battleResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Нет активного конкурса' });
+    }
+    
+    const battleId = battleResult.rows[0].id;
+    
+    await pool.query(
+      'INSERT INTO battle_entries (battle_id, user_id, title, description) VALUES ($1, $2, $3, $4)',
+      [battleId, userId, title, description || null]
+    );
+    
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error('Submit error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Голосовать за блюдо
+app.post('/api/battle/vote', async (req, res) => {
+  try {
+    const { userId, entryId } = req.body;
+    
+    if (!userId || !entryId) {
+      return res.status(400).json({ error: 'Неверные данные' });
+    }
+    
+    // Проверяем, что пользователь не голосует за своё блюдо
+    const entryResult = await pool.query(
+      'SELECT user_id FROM battle_entries WHERE id = $1',
+      [entryId]
+    );
+    
+    if (entryResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Блюдо не найдено' });
+    }
+    
+    if (entryResult.rows[0].user_id === userId) {
+      return res.status(400).json({ error: 'Нельзя голосовать за своё блюдо' });
+    }
+    
+    // Голосуем (UNIQUE не даст проголосовать дважды)
+    await pool.query(
+      'INSERT INTO battle_votes (entry_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [entryId, userId]
+    );
+    
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error('Vote error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Голосовать за дату окончания
+app.post('/api/battle/vote-date', async (req, res) => {
+  try {
+    const { userId, days } = req.body;
+    
+    if (!userId || !days) {
+      return res.status(400).json({ error: 'Неверные данные' });
+    }
+    
+    const battleResult = await pool.query(
+      "SELECT id FROM battles WHERE status = 'active' ORDER BY id DESC LIMIT 1"
+    );
+    
+    if (battleResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Нет активного конкурса' });
+    }
+    
+    const battleId = battleResult.rows[0].id;
+    
+    await pool.query(
+      'INSERT INTO battle_date_votes (battle_id, user_id, days) VALUES ($1, $2, $3) ON CONFLICT (battle_id, user_id) DO UPDATE SET days = $3',
+      [battleId, userId, days]
+    );
+    
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error('Date vote error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Рейтинг топ-10 поваров
+app.get('/api/battle/rating', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT user_id, username, first_name, points, wins FROM chef_ratings ORDER BY points DESC LIMIT 10'
+    );
+    res.json({ rating: result.rows });
+  } catch (error: any) {
+    console.error('Rating error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
     res.json({ users: result.rows });
   } catch (error: any) {
     console.error('Users list error:', error);
