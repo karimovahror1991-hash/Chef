@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.chefassistant.app',
-  appName: 'Умный кулинарный помощник',
+  appName: 'Кулинарный помощник',
   webDir: 'dist',
   android: {
     allowMixedContent: true,

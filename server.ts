@@ -85,6 +85,69 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Создание счёта на подписку через Telegram Stars
+app.post('/api/create-subscription-invoice', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID не указан' });
+    }
+
+    const botToken = env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) {
+      throw new Error('TELEGRAM_BOT_TOKEN не настроен');
+    }
+
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/createInvoiceLink`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Premium доступ на 30 дней',
+        description: 'Все AI-функции без ограничений',
+        payload: `sub_${userId}_${Date.now()}`,
+        currency: 'XTR',
+        prices: [{ label: 'Premium', amount: 250 }],
+        subscription_period: 2592000
+      })
+    });
+
+    const data = await response.json();
+    
+    if (!data.ok) {
+      throw new Error(data.description || 'Ошибка создания счёта');
+    }
+
+    res.json({ invoiceLink: data.result });
+  } catch (error: any) {
+    console.error('Error creating invoice:', error);
+    res.status(500).json({ error: error.message || 'Ошибка создания счёта' });
+  }
+});
+
+// Обработка успешной оплаты от Telegram
+app.post('/api/telegram-webhook', async (req, res) => {
+  try {
+    const { message } = req.body;
+    
+    if (message?.successful_payment) {
+      const payment = message.successful_payment;
+      const userId = message.from.id;
+      const payload = payment.invoice_payload;
+      
+      console.log('Оплата получена:', { userId, payload, amount: payment.total_amount });
+      
+      // TODO: Сохранить в базе данных, что пользователь оплатил
+      // Пока просто логируем
+    }
+    
+    res.sendStatus(200);
+  } catch (error: any) {
+    console.error('Webhook error:', error);
+    res.sendStatus(200);
+  }
+});
+
 // AI Recipe generation based on available ingredients
 app.post('/api/gemini/generate-recipe', async (req, res) => {
   try {
@@ -327,7 +390,7 @@ ${ingredientsRaw}
   },
 });
 
-    const data = JSON.parse(response.text || '{}');
+    const data = JSON.parse(interaction.output_text || '{}');
     res.json({ techCard: data });
   } catch (error: any) {
     console.error('Error generating tech card:', error);
