@@ -1,251 +1,305 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Award,
-  Camera,
-  Check,
-  ChefHat,
-  Crown,
-  Flame,
-  Heart,
-  ImagePlus,
-  Medal,
-  Plus,
-  Trophy,
-  Users,
-  X,
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Trophy, Send, Loader2, AlertCircle, Vote, Plus, Calendar } from 'lucide-react';
+import { apiUrl } from '../utils/api';
 
 interface BattleEntry {
-  id: string;
-  dishName: string;
-  authorName: string;
-  authorAvatar?: string;
-  photo: string;
-  votes: number;
-  createdAt: number;
+  id: number;
+  title: string;
+  description: string | null;
+  photo_url: string | null;
+  vote_count: string;
 }
 
-interface OnlineChef {
-  id: string;
-  name: string;
-  avatar?: string;
-  status: string;
+interface Battle {
+  id: number;
+  theme: string;
+  endsAt: string;
 }
 
-const STORAGE_KEY = 'chef-battle-state-v1';
-
-const starterEntries: BattleEntry[] = [
-  {
-    id: 'battle-1',
-    dishName: 'Самаркандский плов',
-    authorName: 'Алишер Каримов',
-    photo: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=900&q=80',
-    votes: 38,
-    createdAt: Date.now() - 1000 * 60 * 18,
-  },
-  {
-    id: 'battle-2',
-    dishName: 'Тыквенный латте со специями',
-    authorName: 'Мария Соколова',
-    photo: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=900&q=80',
-    votes: 31,
-    createdAt: Date.now() - 1000 * 60 * 34,
-  },
-  {
-    id: 'battle-3',
-    dishName: 'Хрустящие сырники',
-    authorName: 'Денис Волков',
-    photo: 'https://images.unsplash.com/photo-1565299507177-b0ac66763828?auto=format&fit=crop&w=900&q=80',
-    votes: 24,
-    createdAt: Date.now() - 1000 * 60 * 49,
-  },
-];
-
-const starterOnlineChefs: OnlineChef[] = [
-  { id: 'chef-1', name: 'Алишер Каримов', status: 'В битве', avatar: 'АК' },
-  { id: 'chef-2', name: 'Мария Соколова', status: 'В битве', avatar: 'МС' },
-  { id: 'chef-3', name: 'Денис Волков', status: 'В битве', avatar: 'ДВ' },
-  { id: 'chef-4', name: 'Нина Орлова', status: 'Смотрит', avatar: 'НО' },
-];
-
-const readStoredState = () => {
-  try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) return { entries: starterEntries, onlineChefs: starterOnlineChefs };
-    const parsed = JSON.parse(stored);
-    return {
-      entries: Array.isArray(parsed.entries) ? parsed.entries : starterEntries,
-      onlineChefs: Array.isArray(parsed.onlineChefs) ? parsed.onlineChefs : starterOnlineChefs,
-    };
-  } catch {
-    return { entries: starterEntries, onlineChefs: starterOnlineChefs };
-  }
-};
-
-const initials = (name: string) => name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase();
+interface RatingUser {
+  user_id: number;
+  username: string | null;
+  first_name: string | null;
+  points: number;
+  wins: number;
+}
 
 export const ChefBattleView: React.FC = () => {
-  const [storedState] = useState(readStoredState);
-  const [entries, setEntries] = useState<BattleEntry[]>(storedState.entries);
-  const [onlineChefs, setOnlineChefs] = useState<OnlineChef[]>(storedState.onlineChefs);
-  const [votedEntries, setVotedEntries] = useState<string[]>(() => {
+  const [battle, setBattle] = useState<Battle | null>(null);
+  const [entries, setEntries] = useState<BattleEntry[]>([]);
+  const [userVotes, setUserVotes] = useState<number[]>([]);
+  const [rating, setRating] = useState<RatingUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showSubmit, setShowSubmit] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [tab, setTab] = useState<'battle' | 'rating'>('battle');
+
+  const getUserId = (): number | null => {
+    const tg = (window as any).Telegram?.WebApp;
+    return tg?.initDataUnsafe?.user?.id || null;
+  };
+
+  const loadBattle = async () => {
     try {
-      return JSON.parse(window.localStorage.getItem('chef-battle-votes') || '[]');
-    } catch {
-      return [];
+      const userId = getUserId();
+      const res = await fetch(apiUrl(`/api/battle/current?userId=${userId || 0}`));
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setBattle(data.battle);
+      setEntries(data.entries || []);
+      setUserVotes(data.userVotes || []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
-  });
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [dishName, setDishName] = useState('');
-  const [authorName, setAuthorName] = useState('');
-  const [photo, setPhoto] = useState('');
-  const [photoName, setPhotoName] = useState('');
-  const [submitError, setSubmitError] = useState('');
+  };
+
+  const loadRating = async () => {
+    try {
+      const res = await fetch(apiUrl('/api/battle/rating'));
+      const data = await res.json();
+      setRating(data.rating || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries, onlineChefs }));
-  }, [entries, onlineChefs]);
+    loadBattle();
+    loadRating();
+  }, []);
 
-  useEffect(() => {
-    window.localStorage.setItem('chef-battle-votes', JSON.stringify(votedEntries));
-  }, [votedEntries]);
-
-  const leaderboard = useMemo(() => {
-    const scores = new Map<string, { name: string; avatar?: string; points: number; wins: number }>();
-    entries.forEach((entry) => {
-      const current = scores.get(entry.authorName) || { name: entry.authorName, avatar: entry.authorAvatar, points: 0, wins: 0 };
-      current.points += entry.votes;
-      current.avatar = current.avatar || entry.authorAvatar;
-      scores.set(entry.authorName, current);
-    });
-    const sortedEntries = [...entries].sort((a, b) => b.votes - a.votes);
-    sortedEntries.forEach((entry, index) => {
-      const chef = scores.get(entry.authorName);
-      if (chef && index === 0) chef.wins += 1;
-    });
-    return [...scores.values()].sort((a, b) => b.points - a.points);
-  }, [entries]);
-
-  const handlePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setSubmitError('Выберите файл изображения.');
-      return;
+  const handleVote = async (entryId: number) => {
+    const userId = getUserId();
+    if (!userId) return;
+    
+    try {
+      const res = await fetch(apiUrl('/api/battle/vote'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, entryId }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+      setUserVotes(prev => [...prev, entryId]);
+      loadBattle();
+    } catch (err: any) {
+      setError(err.message);
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setSubmitError('Фото должно быть меньше 5 МБ.');
-      return;
-    }
-    setPhotoName(file.name);
-    const reader = new FileReader();
-    reader.onload = () => setPhoto(String(reader.result));
-    reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!dishName.trim() || !authorName.trim() || !photo) {
-      setSubmitError('Добавьте имя, название блюда и фотографию.');
-      return;
+  const handleSubmit = async () => {
+    const userId = getUserId();
+    if (!userId || !newTitle.trim()) return;
+    
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(apiUrl('/api/battle/submit'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, title: newTitle, description: newDescription }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+      setNewTitle('');
+      setNewDescription('');
+      setShowSubmit(false);
+      loadBattle();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
     }
-    const newEntry: BattleEntry = {
-      id: `battle-${Date.now()}`,
-      dishName: dishName.trim(),
-      authorName: authorName.trim(),
-      authorAvatar: initials(authorName),
-      photo,
-      votes: 0,
-      createdAt: Date.now(),
-    };
-    setEntries((current) => [newEntry, ...current]);
-    setOnlineChefs((current) => [{ id: newEntry.id, name: newEntry.authorName, status: 'В битве', avatar: newEntry.authorAvatar }, ...current.filter((chef) => chef.name !== newEntry.authorName)]);
-    setDishName('');
-    setAuthorName('');
-    setPhoto('');
-    setPhotoName('');
-    setSubmitError('');
-    setIsFormOpen(false);
   };
 
-  const voteFor = (entryId: string) => {
-    if (votedEntries.includes(entryId)) return;
-    setEntries((current) => current.map((entry) => entry.id === entryId ? { ...entry, votes: entry.votes + 1 } : entry));
-    setVotedEntries((current) => [...current, entryId]);
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-7">
-      <section className="relative overflow-hidden rounded-3xl bg-stone-900 px-6 py-7 text-white shadow-lg sm:px-9 sm:py-9">
-        <div className="absolute right-0 top-0 h-full w-1/2 bg-gradient-to-l from-amber-500/25 to-transparent" />
-        <div className="relative flex flex-col justify-between gap-7 lg:flex-row lg:items-end">
-          <div className="max-w-2xl">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-400/15 px-3 py-1 text-xs font-semibold text-amber-200">
-              <Flame className="h-3.5 w-3.5" /> Онлайн-соревнование в реальном времени
-            </div>
-            <h1 className="font-serif text-3xl font-bold leading-tight sm:text-4xl">Арена битвы поваров</h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-stone-300">Готовьте, публикуйте и поддерживайте лучших. Каждый голос меняет таблицу лидеров.</p>
-          </div>
-          <button onClick={() => setIsFormOpen(true)} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-3 text-sm font-bold text-stone-950 transition-colors hover:bg-amber-400">
-            <Plus className="h-4 w-4" /> Создать битву / Участвовать
-          </button>
+    <div className="max-w-3xl mx-auto space-y-6">
+      {/* Заголовок */}
+      <div className="bg-gradient-to-r from-rose-600 to-orange-600 rounded-3xl p-6 sm:p-8 text-white shadow-md">
+        <div className="flex items-center space-x-3 mb-2">
+          <Trophy className="w-6 h-6" />
+          <span className="text-xs uppercase font-bold tracking-wider text-rose-100">
+            Битва поваров
+          </span>
         </div>
-      </section>
-
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_310px]">
-        <section className="space-y-4">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-amber-700">Прямо сейчас</p>
-              <h2 className="font-serif text-2xl font-bold text-stone-900">Лента соревнований</h2>
-            </div>
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{entries.length} блюд на арене</span>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {entries.map((entry) => {
-              const hasVoted = votedEntries.includes(entry.id);
-              return (
-                <article key={entry.id} className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xs transition-shadow hover:shadow-md">
-                  <div className="relative aspect-[4/3] bg-stone-100">
-                    <img src={entry.photo} alt={entry.dishName} className="h-full w-full object-cover" />
-                    <div className="absolute left-3 top-3 rounded-lg bg-stone-950/75 px-2.5 py-1 text-xs font-bold text-white">{entry.votes} голосов</div>
-                  </div>
-                  <div className="space-y-3 p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-amber-100 text-[10px] font-bold text-amber-800">
-                        {entry.authorAvatar?.startsWith('data:') ? <img src={entry.authorAvatar} alt="" className="h-full w-full object-cover" /> : entry.authorAvatar || initials(entry.authorName)}
-                      </div>
-                      <div className="min-w-0"><p className="truncate text-xs font-semibold text-stone-500">{entry.authorName}</p><p className="text-[10px] text-stone-400">Участник арены</p></div>
-                    </div>
-                    <h3 className="font-serif text-xl font-bold text-stone-900">{entry.dishName}</h3>
-                    <button onClick={() => voteFor(entry.id)} disabled={hasVoted} className={`flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold transition-colors ${hasVoted ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-900 text-white hover:bg-amber-700'}`}>
-                      {hasVoted ? <Check className="h-4 w-4" /> : <Heart className="h-4 w-4" />} {hasVoted ? 'Ваш голос учтён' : 'Отдать голос'}
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-
-        <aside className="space-y-5">
-          <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-2xs">
-            <div className="mb-4 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-widest text-emerald-700">Сейчас онлайн</p><h2 className="font-serif text-xl font-bold text-stone-900">На арене</h2></div><Users className="h-5 w-5 text-emerald-600" /></div>
-            <div className="space-y-3">
-              {onlineChefs.map((chef) => <div key={chef.id} className="flex items-center gap-3"><div className="relative flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-800">{chef.avatar || initials(chef.name)}<span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-stone-800">{chef.name}</p><p className="text-[11px] text-stone-400">{chef.status}</p></div></div>)}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-2xs">
-            <div className="mb-4 flex items-center gap-2"><Trophy className="h-5 w-5 text-amber-600" /><div><p className="text-xs font-bold uppercase tracking-widest text-amber-700">Рейтинг</p><h2 className="font-serif text-xl font-bold text-stone-900">Топ поваров</h2></div></div>
-            <div className="space-y-3">
-              {leaderboard.map((chef, index) => <div key={chef.name} className="flex items-center gap-3"><div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${index === 0 ? 'bg-amber-100 text-amber-800' : 'bg-stone-100 text-stone-500'}`}>{index === 0 ? <Crown className="h-4 w-4" /> : index + 1}</div><div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-stone-800 text-xs font-bold text-white">{chef.avatar || initials(chef.name)}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-stone-800">{chef.name}</p><p className="text-[11px] text-stone-400">{chef.wins} победа</p></div><strong className="text-sm text-amber-700">{chef.points} очк.</strong></div>)}
-            </div>
-          </section>
-        </aside>
+        <h1 className="font-serif text-2xl sm:text-3xl font-bold">
+          {battle?.theme || 'Конкурс блюд'}
+        </h1>
+        <p className="text-sm text-rose-100/90 mt-1">
+          Голосуйте за лучшие блюда и следите за рейтингом
+        </p>
       </div>
 
-      {isFormOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/60 p-4 backdrop-blur-sm"><div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-5 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-widest text-amber-700">Новый участник</p><h2 className="font-serif text-2xl font-bold text-stone-900">Выйти на арену</h2></div><button onClick={() => setIsFormOpen(false)} className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-800"><X className="h-5 w-5" /></button></div><form onSubmit={handleSubmit} className="space-y-4"><label className="block text-xs font-semibold text-stone-700">Ваше имя<input value={authorName} onChange={(event) => setAuthorName(event.target.value)} placeholder="Например, Анна Петрова" className="mt-1.5 w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm outline-none focus:border-amber-500" /></label><label className="block text-xs font-semibold text-stone-700">Название блюда или напитка<input value={dishName} onChange={(event) => setDishName(event.target.value)} placeholder="Например, Рамен с мисо" className="mt-1.5 w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm outline-none focus:border-amber-500" /></label><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-center hover:border-amber-400"><ImagePlus className="mb-2 h-7 w-7 text-amber-600" /><span className="text-sm font-semibold text-stone-800">{photoName || 'Загрузить фото блюда'}</span><span className="mt-1 text-[11px] text-stone-500">PNG, JPG до 5 МБ</span><input type="file" accept="image/*" onChange={handlePhotoChange} className="sr-only" /></label>{photo && <img src={photo} alt="Предпросмотр" className="h-32 w-full rounded-xl object-cover" />}{submitError && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{submitError}</p>}<button type="submit" className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-3 text-sm font-bold text-white hover:bg-amber-700"><Camera className="h-4 w-4" /> Отправить на суд зрителей</button></form></div></div>}
+      {/* Табы */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setTab('battle')}
+          className={`flex-1 py-3 rounded-2xl font-semibold transition ${
+            tab === 'battle' ? 'bg-amber-600 text-white' : 'bg-white text-stone-600 border border-stone-200'
+          }`}
+        >
+          🏆 Конкурс
+        </button>
+        <button
+          onClick={() => setTab('rating')}
+          className={`flex-1 py-3 rounded-2xl font-semibold transition ${
+            tab === 'rating' ? 'bg-amber-600 text-white' : 'bg-white text-stone-600 border border-stone-200'
+          }`}
+        >
+          🥇 Рейтинг
+        </button>
+      </div>
+
+      {error && (
+        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-center space-x-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {tab === 'battle' && (
+        <>
+          {/* Кнопка предложить блюдо */}
+          <button
+            onClick={() => setShowSubmit(!showSubmit)}
+            className="w-full bg-white border-2 border-dashed border-amber-300 rounded-2xl p-4 flex items-center justify-center space-x-2 text-amber-700 hover:bg-amber-50 transition"
+          >
+            <Plus className="w-5 h-5" />
+            <span className="font-semibold">Предложить своё блюдо</span>
+          </button>
+
+          {/* Форма предложения */}
+          {showSubmit && (
+            <div className="bg-white border border-stone-200 rounded-2xl p-4 space-y-3">
+              <input
+                type="text"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="Название блюда"
+                className="w-full px-4 py-3 rounded-xl border border-stone-300 text-sm"
+              />
+              <textarea
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                placeholder="Краткое описание (необязательно)"
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl border border-stone-300 text-sm"
+              />
+              <button
+                onClick={handleSubmit}
+                disabled={!newTitle.trim() || isSubmitting}
+                className="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 rounded-xl disabled:opacity-50 transition"
+              >
+                {isSubmitting ? 'Отправка...' : 'Отправить'}
+              </button>
+            </div>
+          )}
+
+          {/* Список блюд */}
+          {entries.length === 0 ? (
+            <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center">
+              <p className="text-stone-500">Пока нет участников. Будьте первым!</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {entries.map((entry) => {
+                const hasVoted = userVotes.includes(entry.id);
+                return (
+                  <div
+                    key={entry.id}
+                    className="bg-white border border-stone-200 rounded-2xl p-4 space-y-3"
+                  >
+                    <div>
+                      <h3 className="font-bold text-stone-900">{entry.title}</h3>
+                      {entry.description && (
+                        <p className="text-sm text-stone-600 mt-1">{entry.description}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-stone-500">
+                        🗳 {entry.vote_count} голосов
+                      </span>
+                      <button
+                        onClick={() => handleVote(entry.id)}
+                        disabled={hasVoted}
+                        className={`px-4 py-2 rounded-xl text-sm font-semibold flex items-center space-x-2 transition ${
+                          hasVoted
+                            ? 'bg-stone-100 text-stone-400'
+                            : 'bg-amber-600 hover:bg-amber-700 text-white'
+                        }`}
+                      >
+                        <Vote className="w-4 h-4" />
+                        <span>{hasVoted ? 'Вы проголосовали' : 'Голосовать'}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {tab === 'rating' && (
+        <div className="bg-white border border-stone-200 rounded-2xl p-4">
+          <h2 className="font-bold text-stone-900 mb-4 flex items-center space-x-2">
+            <Trophy className="w-5 h-5 text-amber-600" />
+            <span>Топ-10 лучших поваров</span>
+          </h2>
+          {rating.length === 0 ? (
+            <p className="text-center text-stone-500 py-8">
+              Рейтинг пока пуст. Участвуйте в конкурсах!
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {rating.map((user, index) => (
+                <div
+                  key={user.user_id}
+                  className="flex items-center space-x-3 p-3 rounded-xl bg-stone-50"
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${
+                    index === 0 ? 'bg-amber-500' :
+                    index === 1 ? 'bg-stone-400' :
+                    index === 2 ? 'bg-amber-700' :
+                    'bg-stone-300'
+                  }`}>
+                    {index + 1}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-semibold text-stone-900">
+                      {user.username ? `@${user.username}` : user.first_name || 'Повар'}
+                    </div>
+                    <div className="text-xs text-stone-500">
+                      {user.wins} побед
+                    </div>
+                  </div>
+                  <div className="text-lg font-bold text-amber-600">
+                    {user.points}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
