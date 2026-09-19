@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Header } from './components/Header';
+import { HomeScreen } from './components/HomeScreen';
 import { SmartFridgeView } from './components/SmartFridgeView';
 import { RecipeCatalogView } from './components/RecipeCatalogView';
 import { ChefAdvisorView } from './components/ChefAdvisorView';
@@ -8,11 +8,13 @@ import { GlobalRecipeLabView } from './components/GlobalRecipeLabView';
 import { RecipeDetailModal } from './components/RecipeDetailModal';
 import { CLASSIC_RECIPES } from './data/recipes';
 import { Recipe } from './types';
-import { Sparkles } from 'lucide-react';
 import { apiUrl } from './utils/api';
+import { ArrowLeft } from 'lucide-react';
+
+type Section = 'home' | 'catalog' | 'fridge' | 'advisor' | 'battle' | 'lab';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'fridge' | 'catalog' | 'advisor' | 'battle' | 'lab'>('fridge');
+  const [activeSection, setActiveSection] = useState<Section>('home');
   const [recipes, setRecipes] = useState<Recipe[]>(CLASSIC_RECIPES);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [isPremium, setIsPremium] = useState(false);
@@ -38,12 +40,17 @@ export default function App() {
     setRecipes((prev) => [newRecipe, ...prev]);
   };
 
-  const handleTabChange = (tab: typeof activeTab) => {
-    if (!isPremium && ['fridge', 'advisor', 'lab'].includes(tab)) {
+  const handleSelectSection = (section: Section) => {
+    if (!isPremium && ['fridge', 'advisor', 'lab'].includes(section)) {
       setShowPaywall(true);
       return;
     }
-    setActiveTab(tab);
+    setActiveSection(section);
+  };
+
+  const handleBack = () => {
+    setActiveSection('home');
+    setSelectedRecipe(null);
   };
 
   const handleSubscribe = async () => {
@@ -69,16 +76,45 @@ export default function App() {
     }
   };
 
+  // Главный экран
+  if (activeSection === 'home') {
+    return (
+      <>
+        <HomeScreen onSelectSection={handleSelectSection} />
+        {showPaywall && <PaywallModal onSubscribe={handleSubscribe} onClose={() => setShowPaywall(false)} />}
+      </>
+    );
+  }
+
+  // Заголовок с кнопкой «Назад»
+  const sectionTitles: Record<Section, string> = {
+    home: '',
+    catalog: 'База рецептов',
+    fridge: 'Умный кулинарный помощник',
+    advisor: 'Советник Шефа',
+    battle: 'Битва поваров',
+    lab: 'Глобальная лаборатория',
+  };
+
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-stone-800 flex flex-col font-sans">
-      <Header
-        activeTab={activeTab}
-        setActiveTab={handleTabChange}
-        recipesCount={recipes.length}
-      />
+      {/* Заголовок с кнопкой «Назад» */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-stone-200">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center space-x-3">
+          <button
+            onClick={handleBack}
+            className="w-9 h-9 rounded-full bg-stone-100 hover:bg-amber-100 flex items-center justify-center transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-stone-700" />
+          </button>
+          <h1 className="font-serif text-lg font-bold text-stone-900">
+            {sectionTitles[activeSection]}
+          </h1>
+        </div>
+      </div>
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {activeTab === 'fridge' && (
+        {activeSection === 'fridge' && (
           <SmartFridgeView
             allRecipes={recipes}
             onSelectRecipe={(r) => setSelectedRecipe(r)}
@@ -86,7 +122,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'catalog' && (
+        {activeSection === 'catalog' && (
           <RecipeCatalogView
             recipes={recipes}
             onSelectRecipe={(r) => setSelectedRecipe(r)}
@@ -94,13 +130,13 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'advisor' && (
+        {activeSection === 'advisor' && (
           <ChefAdvisorView currentRecipe={selectedRecipe || recipes[0]} />
         )}
 
-        {activeTab === 'battle' && <ChefBattleView />}
+        {activeSection === 'battle' && <ChefBattleView />}
 
-        {activeTab === 'lab' && <GlobalRecipeLabView />}
+        {activeSection === 'lab' && <GlobalRecipeLabView />}
       </main>
 
       {selectedRecipe && (
@@ -110,53 +146,42 @@ export default function App() {
         />
       )}
 
-      {showPaywall && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl">
-            <h2 className="text-2xl font-bold text-stone-900 mb-4">
-              🎉 Разблокируйте всё!
-            </h2>
-            <ul className="space-y-2 text-sm text-stone-700 mb-6">
-              <li>✅ Все 660+ рецептов</li>
-              <li>✅ Безлимитный AI-советник</li>
-              <li>✅ Умный холодильник без ограничений</li>
-              <li>✅ Глобальная лаборатория</li>
-            </ul>
-            <div className="text-center mb-6">
-              <span className="text-3xl font-bold text-amber-600">250 Stars</span>
-              <span className="text-stone-500 text-sm"> (≈4.99$) в месяц</span>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={handleSubscribe}
-                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 rounded-2xl transition"
-              >
-                Разблокировать
-              </button>
-              <button
-                onClick={() => setShowPaywall(false)}
-                className="px-5 py-3 text-stone-500 hover:text-stone-700"
-              >
-                Позже
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <footer className="border-t border-stone-200/70 py-6 bg-stone-50/50 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-stone-500 gap-3">
-          <div className="flex items-center space-x-2">
-            <span className="font-serif font-bold text-stone-900">Умный кулинарный помощник</span>
-            <span>&bull;</span>
-            <span>Подбор по продуктам и база кулинарной классики</span>
-          </div>
-          <div className="flex items-center space-x-1.5 text-stone-400">
-            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-            <span>AI Шеф-повар и технолог питания</span>
-          </div>
-        </div>
-      </footer>
+      {showPaywall && <PaywallModal onSubscribe={handleSubscribe} onClose={() => setShowPaywall(false)} />}
     </div>
   );
 }
+
+// Модальное окно оплаты
+const PaywallModal: React.FC<{ onSubscribe: () => void; onClose: () => void }> = ({ onSubscribe, onClose }) => (
+  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl">
+      <h2 className="text-2xl font-bold text-stone-900 mb-4">
+        🎉 Разблокируйте всё!
+      </h2>
+      <ul className="space-y-2 text-sm text-stone-700 mb-6">
+        <li>✅ Все 660+ рецептов</li>
+        <li>✅ Безлимитный AI-советник</li>
+        <li>✅ Умный холодильник без ограничений</li>
+        <li>✅ Глобальная лаборатория</li>
+      </ul>
+      <div className="text-center mb-6">
+        <span className="text-3xl font-bold text-amber-600">250 Stars</span>
+        <span className="text-stone-500 text-sm"> (≈4.99$) в месяц</span>
+      </div>
+      <div className="flex gap-3">
+        <button
+          onClick={onSubscribe}
+          className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 rounded-2xl transition"
+        >
+          Разблокировать
+        </button>
+        <button
+          onClick={onClose}
+          className="px-5 py-3 text-stone-500 hover:text-stone-700"
+        >
+          Позже
+        </button>
+      </div>
+    </div>
+  </div>
+);
