@@ -165,8 +165,8 @@ const PaywallModal: React.FC<{ onSubscribe: () => void; onClose: () => void }> =
         <li>✅ Глобальная лаборатория</li>
       </ul>
       <div className="text-center mb-6">
-        <span className="text-3xl font-bold text-amber-600">250 Stars</span>
-        <span className="text-stone-500 text-sm"> (≈4.99$) в месяц</span>
+        <span className="text-3xl font-bold text-amber-600">100 Stars</span>
+<span className="text-stone-500 text-sm"> (≈1.99$) в месяц</span>
       </div>
       <div className="flex gap-3">
         <button
