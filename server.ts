@@ -10,6 +10,9 @@ const app = express();
 const PORT = 3000;
 const env = process.env as Record<string, string | undefined>;
 
+// Простое хранилище подписок (в памяти)
+const subscriptions = new Map<number, number>(); // userId -> timestamp окончания
+
 app.use(express.json());
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -128,22 +131,24 @@ app.post('/api/create-subscription-invoice', async (req, res) => {
 // Проверка статуса подписки
 app.get('/api/check-subscription', async (req, res) => {
   try {
-    const { userId } = req.query;
+    const userId = Number(req.query.userId);
     
     if (!userId) {
       return res.status(400).json({ error: 'User ID не указан' });
     }
 
-    // TODO: Проверить в базе данных
-    const isPremium = false;
+    const expiry = subscriptions.get(userId);
+    const isPremium = expiry ? expiry > Date.now() : false;
     
-    res.json({ isPremium });
+    res.json({ 
+      isPremium,
+      expiresAt: expiry ? new Date(expiry).toISOString() : null
+    });
   } catch (error: any) {
     console.error('Error checking subscription:', error);
     res.status(500).json({ error: error.message });
   }
 });
-// Обработка успешной оплаты от Telegram
 app.post('/api/telegram-webhook', async (req, res) => {
   try {
     const { message } = req.body;
@@ -151,12 +156,16 @@ app.post('/api/telegram-webhook', async (req, res) => {
     if (message?.successful_payment) {
       const payment = message.successful_payment;
       const userId = message.from.id;
-      const payload = payment.invoice_payload;
       
-      console.log('Оплата получена:', { userId, payload, amount: payment.total_amount });
+      // Подписка на 30 дней
+      const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
+      subscriptions.set(userId, expiry);
       
-      // TODO: Сохранить в базе данных, что пользователь оплатил
-      // Пока просто логируем
+      console.log('✅ Оплата получена:', { 
+        userId, 
+        amount: payment.total_amount,
+        expiresAt: new Date(expiry).toISOString()
+      });
     }
     
     res.sendStatus(200);
