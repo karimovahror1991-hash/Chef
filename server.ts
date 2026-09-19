@@ -17,9 +17,10 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Создаём таблицу подписок при старте
+// Создаём таблицы при старте
 async function initDatabase() {
   try {
+    // Таблица подписок
     await pool.query(`
       CREATE TABLE IF NOT EXISTS subscriptions (
         user_id BIGINT PRIMARY KEY,
@@ -27,6 +28,17 @@ async function initDatabase() {
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    
+    // Таблица всех пользователей бота
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bot_users (
+        user_id BIGINT PRIMARY KEY,
+        username TEXT,
+        first_name TEXT,
+        last_interaction TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
     console.log('✅ База данных готова');
   } catch (error) {
     console.error('❌ Ошибка инициализации БД:', error);
@@ -166,6 +178,45 @@ app.get('/api/check-subscription', async (req, res) => {
       return res.json({ isPremium: false, expiresAt: null });
     }
     
+// Всего пользователей
+app.get('/api/stats', async (req, res) => {
+  try {
+    const totalResult = await pool.query('SELECT COUNT(*) FROM bot_users');
+    const total = Number(totalResult.rows[0].count);
+    
+    const premiumResult = await pool.query(
+      'SELECT COUNT(*) FROM subscriptions WHERE expires_at > $1',
+      [Date.now()]
+    );
+    const premium = Number(premiumResult.rows[0].count);
+    
+    res.json({ total, premium });
+  } catch (error: any) {
+    console.error('Stats error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Список всех пользователей (только для админа)
+app.get('/api/users-list', async (req, res) => {
+  try {
+    const { adminId } = req.query;
+    
+    // ⚠️ ЗАМЕНИ 123456789 НА СВОЙ TELEGRAM ID
+    if (Number(adminId) !== 988368940) {
+      return res.status(403).json({ error: 'Доступ запрещён' });
+    }
+    
+    const result = await pool.query(
+      'SELECT user_id, username, first_name, last_interaction FROM bot_users ORDER BY last_interaction DESC'
+    );
+    
+    res.json({ users: result.rows });
+  } catch (error: any) {
+    console.error('Users list error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
     const expiry = Number(result.rows[0].expires_at);
     const isPremium = expiry > Date.now();
     
@@ -182,14 +233,27 @@ app.post('/api/telegram-webhook', async (req, res) => {
   try {
     const { message } = req.body;
     
+    // Сохраняем каждого пользователя, который пишет боту
+    if (message?.from) {
+      await pool.query(
+        `INSERT INTO bot_users (user_id, username, first_name, last_interaction) 
+         VALUES ($1, $2, $3, NOW()) 
+         ON CONFLICT (user_id) 
+         DO UPDATE SET 
+           username = EXCLUDED.username,
+           first_name = EXCLUDED.first_name,
+           last_interaction = NOW()`,
+        [message.from.id, message.from.username || null, message.from.first_name || null]
+      );
+    }
+    
+    // Обработка оплаты
     if (message?.successful_payment) {
       const payment = message.successful_payment;
       const userId = message.from.id;
       
-      // Подписка на 30 дней
       const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
       
-      // Сохраняем в базу данных
       await pool.query(
         `INSERT INTO subscriptions (user_id, expires_at) 
          VALUES ($1, $2) 
@@ -198,10 +262,9 @@ app.post('/api/telegram-webhook', async (req, res) => {
         [userId, expiry]
       );
       
-      console.log('✅ Оплата сохранена в БД:', { 
+      console.log('✅ Оплата сохранена:', { 
         userId, 
-        amount: payment.total_amount,
-        expiresAt: new Date(expiry).toISOString()
+        amount: payment.total_amount 
       });
     }
     
