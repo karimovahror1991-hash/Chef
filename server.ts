@@ -168,7 +168,6 @@ app.get('/api/check-subscription', async (req, res) => {
       return res.status(400).json({ error: 'User ID не указан' });
     }
 
-    // Читаем из базы данных
     const result = await pool.query(
       'SELECT expires_at FROM subscriptions WHERE user_id = $1',
       [userId]
@@ -178,6 +177,19 @@ app.get('/api/check-subscription', async (req, res) => {
       return res.json({ isPremium: false, expiresAt: null });
     }
     
+    const expiry = Number(result.rows[0].expires_at);
+    const isPremium = expiry > Date.now();
+    
+    res.json({ 
+      isPremium,
+      expiresAt: new Date(expiry).toISOString()
+    });
+  } catch (error: any) {
+    console.error('Error checking subscription:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Всего пользователей
 app.get('/api/stats', async (req, res) => {
   try {
@@ -202,7 +214,6 @@ app.get('/api/users-list', async (req, res) => {
   try {
     const { adminId } = req.query;
     
-    // ⚠️ ЗАМЕНИ 123456789 НА СВОЙ TELEGRAM ID
     if (Number(adminId) !== 988368940) {
       return res.status(403).json({ error: 'Доступ запрещён' });
     }
@@ -214,18 +225,6 @@ app.get('/api/users-list', async (req, res) => {
     res.json({ users: result.rows });
   } catch (error: any) {
     console.error('Users list error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-    const expiry = Number(result.rows[0].expires_at);
-    const isPremium = expiry > Date.now();
-    
-    res.json({ 
-      isPremium,
-      expiresAt: new Date(expiry).toISOString()
-    });
-  } catch (error: any) {
-    console.error('Error checking subscription:', error);
     res.status(500).json({ error: error.message });
   }
 });
