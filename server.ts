@@ -3,6 +3,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
+import { Pool } from 'pg';
 
 dotenv.config();
 
@@ -10,9 +11,27 @@ const app = express();
 const PORT = 3000;
 const env = process.env as Record<string, string | undefined>;
 
-// Простое хранилище подписок (в памяти)
-const subscriptions = new Map<number, number>(); // userId -> timestamp окончания
+// Подключение к PostgreSQL (Neon)
+const pool = new Pool({
+  connectionString: env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 
+// Создаём таблицу подписок при старте
+async function initDatabase() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS subscriptions (
+        user_id BIGINT PRIMARY KEY,
+        expires_at BIGINT NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('✅ База данных готова');
+  } catch (error) {
+    console.error('❌ Ошибка инициализации БД:', error);
+  }
+}
 app.use(express.json());
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -137,12 +156,22 @@ app.get('/api/check-subscription', async (req, res) => {
       return res.status(400).json({ error: 'User ID не указан' });
     }
 
-    const expiry = subscriptions.get(userId);
-    const isPremium = expiry ? expiry > Date.now() : false;
+    // Читаем из базы данных
+    const result = await pool.query(
+      'SELECT expires_at FROM subscriptions WHERE user_id = $1',
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ isPremium: false, expiresAt: null });
+    }
+    
+    const expiry = Number(result.rows[0].expires_at);
+    const isPremium = expiry > Date.now();
     
     res.json({ 
       isPremium,
-      expiresAt: expiry ? new Date(expiry).toISOString() : null
+      expiresAt: new Date(expiry).toISOString()
     });
   } catch (error: any) {
     console.error('Error checking subscription:', error);
@@ -159,9 +188,17 @@ app.post('/api/telegram-webhook', async (req, res) => {
       
       // Подписка на 30 дней
       const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
-      subscriptions.set(userId, expiry);
       
-      console.log('✅ Оплата получена:', { 
+      // Сохраняем в базу данных
+      await pool.query(
+        `INSERT INTO subscriptions (user_id, expires_at) 
+         VALUES ($1, $2) 
+         ON CONFLICT (user_id) 
+         DO UPDATE SET expires_at = $2, updated_at = NOW()`,
+        [userId, expiry]
+      );
+      
+      console.log('✅ Оплата сохранена в БД:', { 
         userId, 
         amount: payment.total_amount,
         expiresAt: new Date(expiry).toISOString()
@@ -442,7 +479,7 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
-
+await initDatabase();
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Кулинарный помощник server running on port ${PORT}`);
   });
