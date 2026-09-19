@@ -125,6 +125,24 @@ app.post('/api/create-subscription-invoice', async (req, res) => {
   }
 });
 
+// Проверка статуса подписки
+app.get('/api/check-subscription', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID не указан' });
+    }
+
+    // TODO: Проверить в базе данных
+    const isPremium = false;
+    
+    res.json({ isPremium });
+  } catch (error: any) {
+    console.error('Error checking subscription:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 // Обработка успешной оплаты от Telegram
 app.post('/api/telegram-webhook', async (req, res) => {
   try {
