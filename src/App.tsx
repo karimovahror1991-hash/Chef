@@ -54,27 +54,64 @@ export default function App() {
   };
 
   const handleSubscribe = async () => {
-    if (!userId) return;
-    try {
-      const res = await fetch(apiUrl('/api/create-subscription-invoice'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      });
-      const data = await res.json();
-      if (data.invoiceLink) {
-        const tg = (window as any).Telegram?.WebApp;
-        tg.openInvoice(data.invoiceLink, (status: string) => {
-          if (status === 'paid') {
-            setIsPremium(true);
-            setShowPaywall(false);
-          }
-        });
-      }
-    } catch (e) {
-      console.error(e);
+  console.log('🔵 handleSubscribe вызван');
+  
+  if (!userId) {
+    console.error('❌ userId отсутствует');
+    alert('Ошибка: не удалось определить пользователя. Откройте приложение через Telegram.');
+    return;
+  }
+
+  try {
+    console.log('🔵 Создаём счёт для userId:', userId);
+    
+    const res = await fetch(apiUrl('/api/create-subscription-invoice'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    });
+    
+    const data = await res.json();
+    console.log('🔵 Ответ сервера:', data);
+
+    if (!data.invoiceLink) {
+      console.error('❌ Нет invoiceLink в ответе');
+      alert('Ошибка: сервер не вернул ссылку на оплату');
+      return;
     }
-  };
+
+    const tg = (window as any).Telegram?.WebApp;
+    
+    if (!tg) {
+      console.error('❌ Telegram.WebApp недоступен');
+      alert('Ошибка: приложение не видит Telegram. Откройте через бота.');
+      return;
+    }
+
+    console.log('🔵 Открываем окно оплаты:', data.invoiceLink);
+    console.log('🔵 Версия Telegram WebApp:', tg.version);
+    console.log('🔵 Платформа:', tg.platform);
+
+    tg.openInvoice(data.invoiceLink, (status: string) => {
+      console.log('🔵 Статус оплаты:', status);
+      
+      if (status === 'paid') {
+        setIsPremium(true);
+        setShowPaywall(false);
+        alert('✅ Оплата прошла успешно! Premium активирован.');
+      } else if (status === 'failed') {
+        alert('❌ Ошибка оплаты. Попробуйте ещё раз.');
+      } else if (status === 'cancelled') {
+        console.log('Пользователь отменил оплату');
+      } else if (status === 'pending') {
+        console.log('Оплата в процессе...');
+      }
+    });
+  } catch (e: any) {
+    console.error('❌ Ошибка:', e);
+    alert('Ошибка: ' + (e.message || 'Неизвестная ошибка'));
+  }
+};
 
   // Главный экран
  if (activeSection === 'home') {
