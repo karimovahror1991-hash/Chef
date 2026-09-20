@@ -292,6 +292,13 @@ app.get('/api/users-list', async (req, res) => {
       'SELECT user_id, username, first_name, last_interaction FROM bot_users ORDER BY last_interaction DESC'
     );
     
+    res.json({ users: result.rows });
+  } catch (error: any) {
+    console.error('Users list error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Текущий конкурс
 app.get('/api/battle/current', async (req, res) => {
   try {
