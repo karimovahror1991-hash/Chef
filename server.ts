@@ -562,7 +562,35 @@ app.post('/api/telegram-webhook', async (req, res) => {
       const usersResult = await pool.query(
         'SELECT user_id, username, first_name, last_interaction FROM bot_users ORDER BY last_interaction DESC LIMIT 10'
       );
+          // Обработка команды /grant USER_ID
+    if (message?.text?.startsWith('/grant') && message.from.id === 988368940) {
+      const parts = message.text.split(' ');
+      const targetId = Number(parts[1]);
       
+      if (!targetId) {
+        await sendTelegramMessage(
+          message.from.id,
+          '❌ Использование: <code>/grant USER_ID</code>\nПример: <code>/grant 804629947</code>'
+        );
+      } else {
+        const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
+        
+        await pool.query(
+          `INSERT INTO subscriptions (user_id, expires_at) 
+           VALUES ($1, $2) 
+           ON CONFLICT (user_id) 
+           DO UPDATE SET expires_at = $2, updated_at = NOW()`,
+          [targetId, expiry]
+        );
+        
+        await sendTelegramMessage(
+          message.from.id,
+          `✅ Premium выдан пользователю <code>${targetId}</code> на 30 дней.\nДействует до: ${new Date(expiry).toLocaleString('ru-RU')}`
+        );
+        
+        console.log('✅ Premium выдан:', targetId);
+      }
+    }
       const total = totalResult.rows[0].count;
       const premium = premiumResult.rows[0].count;
       
