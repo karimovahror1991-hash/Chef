@@ -9,9 +9,11 @@ import {
   BookOpen, 
   ArrowRight,
   Filter,
-  Loader2
+  Loader2,
+  Heart
 } from 'lucide-react';
 import { apiUrl } from '../utils/api';
+import { useFavorites } from '../hooks/useFavorites';
 
 interface RecipeCatalogViewProps {
   recipes: Recipe[];
@@ -32,6 +34,8 @@ export const RecipeCatalogView: React.FC<RecipeCatalogViewProps> = ({
   const [isGeneratingDish, setIsGeneratingDish] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+
+  const { toggleFavorite, isFavorite } = useFavorites();
 
   const categories = [
     { id: 'all', label: 'Все разделы' },
@@ -195,10 +199,10 @@ export const RecipeCatalogView: React.FC<RecipeCatalogViewProps> = ({
       ) : (
         <div className="space-y-2">
           {filteredRecipes.map((recipe) => (
-            <button
+            <div
               key={recipe.id}
               onClick={() => onSelectRecipe(recipe)}
-              className="w-full bg-white border border-stone-200 rounded-2xl p-4 flex items-center justify-between hover:border-amber-400 hover:shadow-md transition-all text-left group"
+              className="w-full bg-white border border-stone-200 rounded-2xl p-4 flex items-center justify-between hover:border-amber-400 hover:shadow-md transition-all text-left group cursor-pointer"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center space-x-2 mb-1">
@@ -226,8 +230,25 @@ export const RecipeCatalogView: React.FC<RecipeCatalogViewProps> = ({
                   </span>
                 </div>
               </div>
-              <ArrowRight className="w-5 h-5 text-stone-300 group-hover:text-amber-600 transition-colors shrink-0 ml-3" />
-            </button>
+              <div className="flex items-center space-x-2 shrink-0 ml-3">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFavorite(recipe.id);
+                  }}
+                  className="p-2 rounded-full hover:bg-amber-50 transition-colors"
+                >
+                  <Heart
+                    className={`w-5 h-5 transition-colors ${
+                      isFavorite(recipe.id)
+                        ? 'fill-rose-500 text-rose-500'
+                        : 'text-stone-300 hover:text-rose-400'
+                    }`}
+                  />
+                </button>
+                <ArrowRight className="w-5 h-5 text-stone-300 group-hover:text-amber-600 transition-colors" />
+              </div>
+            </div>
           ))}
         </div>
       )}

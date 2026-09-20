@@ -10,7 +10,7 @@ import { CLASSIC_RECIPES } from './data/recipes';
 import { Recipe } from './types';
 import { apiUrl } from './utils/api';
 import { ArrowLeft } from 'lucide-react';
-
+import { ShoppingListView } from './components/ShoppingListView';
 type Section = 'home' | 'catalog' | 'fridge' | 'advisor' | 'battle' | 'lab';
 
 export default function App() {
@@ -19,8 +19,8 @@ export default function App() {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [isPremium, setIsPremium] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
-  const [userId, setUserId] = useState<number | null>(null);
-
+   const [userId, setUserId] = useState<number | null>(null);
+  const [showShoppingList, setShowShoppingList] = useState(false);
   useEffect(() => {
     const tg = (window as any).Telegram?.WebApp;
     if (tg?.initDataUnsafe?.user?.id) {
@@ -77,15 +77,20 @@ export default function App() {
   };
 
   // Главный экран
-  if (activeSection === 'home') {
-    return (
-      <>
-        <HomeScreen onSelectSection={handleSelectSection} />
-        {showPaywall && <PaywallModal onSubscribe={handleSubscribe} onClose={() => setShowPaywall(false)} />}
-      </>
-    );
+ if (activeSection === 'home') {
+  if (showShoppingList) {
+    return <ShoppingListView onClose={() => setShowShoppingList(false)} />;
   }
-
+  return (
+    <>
+      <HomeScreen 
+        onSelectSection={handleSelectSection} 
+        onOpenShoppingList={() => setShowShoppingList(true)}
+      />
+      {showPaywall && <PaywallModal onSubscribe={handleSubscribe} onClose={() => setShowPaywall(false)} />}
+    </>
+  );
+}
   // Заголовок с кнопкой «Назад»
   const sectionTitles: Record<Section, string> = {
     home: '',

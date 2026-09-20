@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useShoppingList } from '../hooks/useShoppingList';
 import { Recipe, CATEGORY_LABELS } from '../types';
+import { ShoppingCart, Check } from 'lucide-react';
 import { 
   X, 
   Clock, 
@@ -31,7 +33,8 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   const [servings, setServings] = useState<number>(recipe?.servings || 4);
   const [activeTab, setActiveTab] = useState<'cooking' | 'techcard'>('cooking');
   const [checkedIngredients, setCheckedIngredients] = useState<Record<number, boolean>>({});
-
+const { addRecipe } = useShoppingList();
+const [addedToList, setAddedToList] = useState(false);
   // Step timers state: { [stepNumber]: { remaining: number, isRunning: boolean, initial: number } }
   const [timers, setTimers] = useState<Record<number, { remaining: number; isRunning: boolean; initial: number }>>({});
 
@@ -315,9 +318,39 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                           {formatScaledAmount(ing.amount)} {ing.unit}
                         </span>
                       </label>
-                    );
+                                      );
                   })}
                 </div>
+                
+                {/* Кнопка "Добавить в список покупок" */}
+                <button
+                  onClick={() => {
+                    addRecipe(scaledIngredients.map(ing => ({
+                      name: ing.name,
+                      amount: ing.amount,
+                      unit: ing.unit
+                    })));
+                    setAddedToList(true);
+                    setTimeout(() => setAddedToList(false), 2000);
+                  }}
+                  className={`w-full mt-3 py-3 rounded-xl font-semibold flex items-center justify-center space-x-2 transition-colors ${
+                    addedToList
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-amber-600 hover:bg-amber-700 text-white'
+                  }`}
+                >
+                  {addedToList ? (
+                    <>
+                      <Check className="w-5 h-5" />
+                      <span>Добавлено в список покупок!</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart className="w-5 h-5" />
+                      <span>Добавить в список покупок</span>
+                    </>
+                  )}
+                </button>
               </div>
 
               {/* Step-by-Step Instructions with Timers */}

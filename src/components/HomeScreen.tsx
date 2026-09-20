@@ -1,11 +1,15 @@
 import React from 'react';
-import { BookOpen, Refrigerator, ChefHat, Trophy, FlaskConical, Sparkles } from 'lucide-react';
+import { BookOpen, Refrigerator, ChefHat, Trophy, FlaskConical, Sparkles, ShoppingCart } from 'lucide-react';
+import { useShoppingList } from '../hooks/useShoppingList';
 
 interface HomeScreenProps {
   onSelectSection: (section: 'catalog' | 'fridge' | 'advisor' | 'battle' | 'lab') => void;
+  onOpenShoppingList: () => void;
 }
 
-export const HomeScreen: React.FC<HomeScreenProps> = ({ onSelectSection }) => {
+export const HomeScreen: React.FC<HomeScreenProps> = ({ onSelectSection, onOpenShoppingList }) => {
+  const { items } = useShoppingList();
+
   const sections = [
     {
       id: 'catalog' as const,
@@ -47,7 +51,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onSelectSection }) => {
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-stone-800 flex flex-col">
       {/* Заголовок */}
-      <div className="bg-amber-600 text-white p-6 sm:p-8" style={{ backgroundColor: '#D97706' }}>
+      <div className="relative bg-amber-600 text-white p-6 sm:p-8" style={{ backgroundColor: '#D97706' }}>
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center space-x-3 mb-2">
             <Sparkles className="w-6 h-6" />
@@ -62,6 +66,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onSelectSection }) => {
             Выберите раздел, чтобы начать
           </p>
         </div>
+
+        {/* Кнопка списка покупок */}
+        <button
+          onClick={onOpenShoppingList}
+          className="absolute top-6 right-6 w-12 h-12 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md flex items-center justify-center transition"
+        >
+          <ShoppingCart className="w-6 h-6 text-white" />
+          {items.length > 0 && (
+            <span className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-rose-500 text-white text-xs font-bold flex items-center justify-center">
+              {items.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Карточки разделов */}
