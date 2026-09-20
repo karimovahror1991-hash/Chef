@@ -7,11 +7,9 @@ import {
   ChefHat, 
   Sparkles, 
   BookOpen, 
-  Flame, 
   ArrowRight,
   Filter,
-  Loader2,
-  Plus
+  Loader2
 } from 'lucide-react';
 import { apiUrl } from '../utils/api';
 
@@ -30,7 +28,6 @@ export const RecipeCatalogView: React.FC<RecipeCatalogViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
 
-  // Request new classic recipe with AI
   const [customDishName, setCustomDishName] = useState('');
   const [isGeneratingDish, setIsGeneratingDish] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -48,15 +45,12 @@ export const RecipeCatalogView: React.FC<RecipeCatalogViewProps> = ({
 
   const filteredRecipes = useMemo(() => {
     return recipes.filter((recipe) => {
-      // Category filter
       if (selectedCategory !== 'all' && recipe.category !== selectedCategory) {
         return false;
       }
-      // Difficulty filter
       if (selectedDifficulty !== 'all' && recipe.difficulty !== selectedDifficulty) {
         return false;
       }
-      // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const inTitle = recipe.title.toLowerCase().includes(q);
@@ -114,10 +108,10 @@ export const RecipeCatalogView: React.FC<RecipeCatalogViewProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="font-serif text-2xl sm:text-3xl font-bold text-stone-900">
-            База рецептов и кулинарная классика
+            База рецептов
           </h1>
           <p className="text-xs sm:text-sm text-stone-500 mt-1">
-            Пошаговые проверенные технологии, точные граммовки и тонкие секреты шефа
+            Выберите блюдо из списка, чтобы увидеть полный рецепт
           </p>
         </div>
 
@@ -133,19 +127,17 @@ export const RecipeCatalogView: React.FC<RecipeCatalogViewProps> = ({
       {/* Search and Filters Bar */}
       <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-2xs space-y-3">
         <div className="flex flex-col sm:flex-row gap-3">
-          {/* Search Input */}
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск по названию блюда, продуктам или тегу (например: плов, говядина, рис, сыр)..."
+              placeholder="Поиск по названию блюда..."
               className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-300 text-xs sm:text-sm focus:outline-hidden focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
             />
           </div>
 
-          {/* Difficulty filter */}
           <div className="flex items-center space-x-2">
             <Filter className="w-4 h-4 text-stone-400 shrink-0" />
             <select
@@ -156,7 +148,7 @@ export const RecipeCatalogView: React.FC<RecipeCatalogViewProps> = ({
               <option value="all">Все сложности</option>
               <option value="Легко">Легко</option>
               <option value="Средне">Средне</option>
-              <option value="Профи">Профи (мастер-класс)</option>
+              <option value="Профи">Профи</option>
             </select>
           </div>
         </div>
@@ -179,15 +171,15 @@ export const RecipeCatalogView: React.FC<RecipeCatalogViewProps> = ({
         </div>
       </div>
 
-      {/* Recipe Grid */}
+      {/* Simple Recipe List */}
       {filteredRecipes.length === 0 ? (
         <div className="p-12 text-center rounded-2xl bg-white border border-stone-200 space-y-3">
           <BookOpen className="w-10 h-10 text-stone-300 mx-auto" />
           <h3 className="font-serif text-lg font-bold text-stone-900">
-            Ничего не найдено по вашему запросу
+            Ничего не найдено
           </h3>
           <p className="text-xs text-stone-500 max-w-sm mx-auto">
-            Попробуйте изменить поисковые слова или создайте новое блюдо с помощью умного шеф-повара.
+            Попробуйте изменить поисковые слова или создайте новое блюдо с помощью AI.
           </p>
           <button
             onClick={() => {
@@ -201,91 +193,41 @@ export const RecipeCatalogView: React.FC<RecipeCatalogViewProps> = ({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="space-y-2">
           {filteredRecipes.map((recipe) => (
-            <div
+            <button
               key={recipe.id}
-              className="bg-white rounded-2xl border border-stone-200 hover:border-amber-400/80 hover:shadow-lg transition-all duration-200 overflow-hidden flex flex-col group"
+              onClick={() => onSelectRecipe(recipe)}
+              className="w-full bg-white border border-stone-200 rounded-2xl p-4 flex items-center justify-between hover:border-amber-400 hover:shadow-md transition-all text-left group"
             >
-              {/* Card Body */}
-              <div className="p-5 flex-1 space-y-3">
-                {/* Meta Header */}
-                <div className="flex items-center justify-between">
-                  <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider bg-stone-100 text-stone-700">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-2 mb-1">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-stone-100 text-stone-600">
                     {CATEGORY_LABELS[recipe.category] || recipe.category}
                   </span>
-
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
                     recipe.difficulty === 'Профи' ? 'bg-rose-50 text-rose-700' :
                     recipe.difficulty === 'Средне' ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700'
                   }`}>
                     {recipe.difficulty}
                   </span>
                 </div>
-
-                {/* Title */}
-                <h3 
-                  onClick={() => onSelectRecipe(recipe)}
-                  className="font-serif text-lg sm:text-xl font-bold text-stone-900 group-hover:text-amber-700 transition-colors cursor-pointer leading-snug"
-                >
+                <h3 className="font-serif text-base sm:text-lg font-bold text-stone-900 group-hover:text-amber-700 transition-colors truncate">
                   {recipe.title}
                 </h3>
-
-                {/* Description */}
-                <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed">
-                  {recipe.description}
-                </p>
-
-                {/* Chef Secret Teaser */}
-                {recipe.chefSecrets && recipe.chefSecrets.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200/60 text-xs text-stone-700 space-y-1">
-                    <div className="flex items-center space-x-1.5 text-amber-900 font-semibold text-[11px]">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Секрет от шефа:</span>
-                    </div>
-                    <p className="line-clamp-2 text-stone-600 italic">
-                      &laquo;{recipe.chefSecrets[0]}&raquo;
-                    </p>
-                  </div>
-                )}
-
-                {/* Key ingredients count */}
-                <div className="flex flex-wrap gap-1 text-[11px] text-stone-500 pt-1">
-                  {recipe.ingredients.slice(0, 4).map((ing, i) => (
-                    <span key={i} className="bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded">
-                      {ing.name.split('(')[0]}
-                    </span>
-                  ))}
-                  {recipe.ingredients.length > 4 && (
-                    <span className="text-stone-400 py-0.5">+{recipe.ingredients.length - 4} продуктов</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Card Footer with Quick Action Buttons */}
-              <div className="px-5 py-3 bg-stone-50/90 border-t border-stone-100 flex items-center justify-between text-xs">
-                <div className="flex items-center space-x-3 text-stone-500">
-                  <span className="flex items-center space-x-1 font-medium">
-                    <Clock className="w-3.5 h-3.5 text-amber-600" />
+                <div className="flex items-center space-x-3 text-[11px] text-stone-500 mt-1">
+                  <span className="flex items-center space-x-1">
+                    <Clock className="w-3 h-3" />
                     <span>{recipe.prepTime + recipe.cookTime} мин</span>
                   </span>
                   <span className="flex items-center space-x-1">
-                    <Users className="w-3.5 h-3.5 text-stone-400" />
+                    <Users className="w-3 h-3" />
                     <span>{recipe.servings} порц.</span>
                   </span>
                 </div>
-
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => onSelectRecipe(recipe)}
-                    className="px-3 py-1.5 bg-stone-900 group-hover:bg-amber-700 text-white rounded-lg font-semibold flex items-center space-x-1 transition-colors shadow-2xs"
-                  >
-                    <span>Рецепт</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
               </div>
-            </div>
+              <ArrowRight className="w-5 h-5 text-stone-300 group-hover:text-amber-600 transition-colors shrink-0 ml-3" />
+            </button>
           ))}
         </div>
       )}
@@ -310,8 +252,7 @@ export const RecipeCatalogView: React.FC<RecipeCatalogViewProps> = ({
             </div>
 
             <p className="text-xs text-stone-600">
-              Введите любое традиционное или ресторанное блюдо (например: <em>«Хашлама из баранины», «Шурпа», «Хинкали», «Сливочный крем-суп из тыквы», «Тирамису»</em>).
-              AI составит профессиональный рецепт, точные граммовки и секреты приготовления.
+              Введите любое блюдо, и AI составит профессиональный рецепт.
             </p>
 
             <form onSubmit={handleGenerateCustomClassic} className="space-y-4">
@@ -324,7 +265,7 @@ export const RecipeCatalogView: React.FC<RecipeCatalogViewProps> = ({
                   required
                   value={customDishName}
                   onChange={(e) => setCustomDishName(e.target.value)}
-                  placeholder="Например: Самаркандская самса с мясом"
+                  placeholder="Например: Самаркандская самса"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs sm:text-sm focus:outline-hidden focus:border-amber-500"
                 />
               </div>
@@ -352,7 +293,7 @@ export const RecipeCatalogView: React.FC<RecipeCatalogViewProps> = ({
                   {isGeneratingDish ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Составление рецептуры...</span>
+                      <span>Составление...</span>
                     </>
                   ) : (
                     <>
