@@ -47,7 +47,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onSelectSection }) => {
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-stone-800 flex flex-col">
       {/* Заголовок */}
-      <div className="bg-gradient-to-r from-amber-600 to-orange-600 text-white p-6 sm:p-8">
+      <div className="bg-amber-600 text-white p-6 sm:p-8" style={{ backgroundColor: '#D97706' }}>
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center space-x-3 mb-2">
             <Sparkles className="w-6 h-6" />
