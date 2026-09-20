@@ -560,7 +560,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
         [Date.now()]
       );
       const usersResult = await pool.query(
-        'SELECT user_id, username, first_name, last_interaction FROM bot_users ORDER BY last_interaction DESC LIMIT 10'
+        'SELECT user_id, username, first_name, last_interaction FROM bot_users ORDER BY last_interaction DESC LIMIT 30'
       );
       
       const total = totalResult.rows[0].count;
