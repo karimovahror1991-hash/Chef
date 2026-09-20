@@ -469,12 +469,7 @@ app.get('/api/battle/rating', async (req, res) => {
     const result = await pool.query(
       'SELECT user_id, username, first_name, points, wins FROM chef_ratings ORDER BY points DESC LIMIT 10'
     );
-    res.json({ rating: result.rows });
-  } catch (error: any) {
-    console.error('Rating error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+
     res.json({ users: result.rows });
   } catch (error: any) {
     console.error('Users list error:', error);
