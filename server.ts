@@ -562,7 +562,25 @@ app.post('/api/telegram-webhook', async (req, res) => {
       const usersResult = await pool.query(
         'SELECT user_id, username, first_name, last_interaction FROM bot_users ORDER BY last_interaction DESC LIMIT 10'
       );
-          // Обработка команды /grant USER_ID
+      
+      const total = totalResult.rows[0].count;
+      const premium = premiumResult.rows[0].count;
+      
+      let text = `📊 <b>Статистика</b>\n\n`;
+      text += `👥 Всего пользователей: <b>${total}</b>\n`;
+      text += `⭐ Premium: <b>${premium}</b>\n\n`;
+      text += `<b>Последние 10:</b>\n`;
+      
+      usersResult.rows.forEach((u, i) => {
+        const name = u.username ? `@${u.username}` : u.first_name || 'Без имени';
+        const date = new Date(u.last_interaction).toLocaleString('ru-RU');
+        text += `${i + 1}. ${name} (ID: <code>${u.user_id}</code>) — ${date}\n`;
+      });
+      
+      await sendTelegramMessage(message.from.id, text);
+    }
+
+    // Обработка команды /grant USER_ID
     if (message?.text?.startsWith('/grant') && message.from.id === 988368940) {
       const parts = message.text.split(' ');
       const targetId = Number(parts[1]);
@@ -590,22 +608,6 @@ app.post('/api/telegram-webhook', async (req, res) => {
         
         console.log('✅ Premium выдан:', targetId);
       }
-    }
-      const total = totalResult.rows[0].count;
-      const premium = premiumResult.rows[0].count;
-      
-      let text = `📊 <b>Статистика</b>\n\n`;
-      text += `👥 Всего пользователей: <b>${total}</b>\n`;
-      text += `⭐ Premium: <b>${premium}</b>\n\n`;
-      text += `<b>Последние 10:</b>\n`;
-      
-      usersResult.rows.forEach((u, i) => {
-        const name = u.username ? `@${u.username}` : u.first_name || 'Без имени';
-        const date = new Date(u.last_interaction).toLocaleString('ru-RU');
-        text += `${i + 1}. ${name} (ID: <code>${u.user_id}</code>) — ${date}\n`;
-      });
-      
-      await sendTelegramMessage(message.from.id, text);
     }
     // Обработка оплаты
     if (message?.successful_payment) {
