@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { TonPayButton, useTonPay } from '@ton-pay/ui-react';
+import { createTonPayTransfer } from '@ton-pay/api';
 import { HomeScreen } from './components/HomeScreen';
 import { SmartFridgeView } from './components/SmartFridgeView';
 import { RecipeCatalogView } from './components/RecipeCatalogView';
@@ -11,6 +13,7 @@ import { Recipe } from './types';
 import { apiUrl } from './utils/api';
 import { ArrowLeft } from 'lucide-react';
 import { ShoppingListView } from './components/ShoppingListView';
+
 type Section = 'home' | 'catalog' | 'fridge' | 'advisor' | 'battle' | 'lab';
 
 export default function App() {
@@ -19,8 +22,9 @@ export default function App() {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [isPremium, setIsPremium] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
-   const [userId, setUserId] = useState<number | null>(null);
+  const [userId, setUserId] = useState<number | null>(null);
   const [showShoppingList, setShowShoppingList] = useState(false);
+
   useEffect(() => {
     const tg = (window as any).Telegram?.WebApp;
     if (tg?.initDataUnsafe?.user?.id) {
@@ -54,81 +58,84 @@ export default function App() {
   };
 
   const handleSubscribe = async () => {
-  console.log('🔵 handleSubscribe вызван');
-  
-  if (!userId) {
-    console.error('❌ userId отсутствует');
-    alert('Ошибка: не удалось определить пользователя. Откройте приложение через Telegram.');
-    return;
-  }
-
-  try {
-    console.log('🔵 Создаём счёт для userId:', userId);
+    console.log('🔵 handleSubscribe вызван');
     
-    const res = await fetch(apiUrl('/api/create-subscription-invoice'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
-    });
-    
-    const data = await res.json();
-    console.log('🔵 Ответ сервера:', data);
-
-    if (!data.invoiceLink) {
-      console.error('❌ Нет invoiceLink в ответе');
-      alert('Ошибка: сервер не вернул ссылку на оплату');
+    if (!userId) {
+      console.error('❌ userId отсутствует');
+      alert('Ошибка: не удалось определить пользователя. Откройте приложение через Telegram.');
       return;
     }
 
-    const tg = (window as any).Telegram?.WebApp;
-    
-    if (!tg) {
-      console.error('❌ Telegram.WebApp недоступен');
-      alert('Ошибка: приложение не видит Telegram. Откройте через бота.');
-      return;
-    }
-
-    console.log('🔵 Открываем окно оплаты:', data.invoiceLink);
-    console.log('🔵 Версия Telegram WebApp:', tg.version);
-    console.log('🔵 Платформа:', tg.platform);
-
-    tg.openInvoice(data.invoiceLink, (status: string) => {
-      console.log('🔵 Статус оплаты:', status);
+    try {
+      console.log('🔵 Создаём счёт для userId:', userId);
       
-      if (status === 'paid') {
-        setIsPremium(true);
-        setShowPaywall(false);
-        alert('✅ Оплата прошла успешно! Premium активирован.');
-      } else if (status === 'failed') {
-        alert('❌ Ошибка оплаты. Попробуйте ещё раз.');
-      } else if (status === 'cancelled') {
-        console.log('Пользователь отменил оплату');
-      } else if (status === 'pending') {
-        console.log('Оплата в процессе...');
-      }
-    });
-  } catch (e: any) {
-    console.error('❌ Ошибка:', e);
-    alert('Ошибка: ' + (e.message || 'Неизвестная ошибка'));
-  }
-};
+      const res = await fetch(apiUrl('/api/create-subscription-invoice'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      
+      const data = await res.json();
+      console.log('🔵 Ответ сервера:', data);
 
-  // Главный экран
- if (activeSection === 'home') {
-  if (showShoppingList) {
-    return <ShoppingListView onClose={() => setShowShoppingList(false)} />;
+      if (!data.invoiceLink) {
+        console.error('❌ Нет invoiceLink в ответе');
+        alert('Ошибка: сервер не вернул ссылку на оплату');
+        return;
+      }
+
+      const tg = (window as any).Telegram?.WebApp;
+      
+      if (!tg) {
+        console.error('❌ Telegram.WebApp недоступен');
+        alert('Ошибка: приложение не видит Telegram. Откройте через бота.');
+        return;
+      }
+
+      console.log('🔵 Открываем окно оплаты:', data.invoiceLink);
+
+      tg.openInvoice(data.invoiceLink, (status: string) => {
+        console.log('🔵 Статус оплаты:', status);
+        
+        if (status === 'paid') {
+          setIsPremium(true);
+          setShowPaywall(false);
+          alert('✅ Оплата прошла успешно! Premium активирован.');
+        } else if (status === 'failed') {
+          alert('❌ Ошибка оплаты. Попробуйте ещё раз.');
+        } else if (status === 'cancelled') {
+          console.log('Пользователь отменил оплату');
+        } else if (status === 'pending') {
+          console.log('Оплата в процессе...');
+        }
+      });
+    } catch (e: any) {
+      console.error('❌ Ошибка:', e);
+      alert('Ошибка: ' + (e.message || 'Неизвестная ошибка'));
+    }
+  };
+
+  if (activeSection === 'home') {
+    if (showShoppingList) {
+      return <ShoppingListView onClose={() => setShowShoppingList(false)} />;
+    }
+    return (
+      <>
+        <HomeScreen 
+          onSelectSection={handleSelectSection} 
+          onOpenShoppingList={() => setShowShoppingList(true)}
+        />
+        {showPaywall && (
+          <PaywallModal 
+            onSubscribe={handleSubscribe} 
+            onClose={() => setShowPaywall(false)} 
+            userId={userId}
+          />
+        )}
+      </>
+    );
   }
-  return (
-    <>
-      <HomeScreen 
-        onSelectSection={handleSelectSection} 
-        onOpenShoppingList={() => setShowShoppingList(true)}
-      />
-      {showPaywall && <PaywallModal onSubscribe={handleSubscribe} onClose={() => setShowPaywall(false)} />}
-    </>
-  );
-}
-  // Заголовок с кнопкой «Назад»
+
   const sectionTitles: Record<Section, string> = {
     home: '',
     catalog: 'База рецептов',
@@ -140,7 +147,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-stone-800 flex flex-col font-sans">
-      {/* Заголовок с кнопкой «Назад» */}
       <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-stone-200">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center space-x-3">
           <button
@@ -188,42 +194,110 @@ export default function App() {
         />
       )}
 
-      {showPaywall && <PaywallModal onSubscribe={handleSubscribe} onClose={() => setShowPaywall(false)} />}
+      {showPaywall && (
+        <PaywallModal 
+          onSubscribe={handleSubscribe} 
+          onClose={() => setShowPaywall(false)} 
+          userId={userId}
+        />
+      )}
     </div>
   );
 }
 
-// Модальное окно оплаты
-const PaywallModal: React.FC<{ onSubscribe: () => void; onClose: () => void }> = ({ onSubscribe, onClose }) => (
-  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl">
-      <h2 className="text-2xl font-bold text-stone-900 mb-4">
-        🎉 Разблокируйте всё!
-      </h2>
-      <ul className="space-y-2 text-sm text-stone-700 mb-6">
-        <li>✅ Все 660+ рецептов</li>
-        <li>✅ Безлимитный AI-советник</li>
-        <li>✅ Умный холодильник без ограничений</li>
-        <li>✅ Глобальная лаборатория</li>
-      </ul>
-      <div className="text-center mb-6">
-        <span className="text-3xl font-bold text-amber-600">100 Stars</span>
-<span className="text-stone-500 text-sm"> (≈1.99$) в месяц</span>
-      </div>
-      <div className="flex gap-3">
-        <button
-          onClick={onSubscribe}
-          className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 rounded-2xl transition"
-        >
-          Разблокировать
-        </button>
+// Модальное окно оплаты с TON Pay
+const PaywallModal: React.FC<{ 
+  onSubscribe: () => void; 
+  onClose: () => void;
+  userId: number | null;
+}> = ({ onSubscribe, onClose, userId }) => {
+  const { pay } = useTonPay();
+  const [isTonLoading, setIsTonLoading] = React.useState(false);
+
+  const handleTonPay = async () => {
+    if (!userId) {
+      alert('Ошибка: пользователь не определён');
+      return;
+    }
+
+    setIsTonLoading(true);
+    try {
+      await pay(async (senderAddr) => {
+        const result = await createTonPayTransfer({
+          amount: 0.5, // 0.5 TON ≈ 1.99$ (курс нужно уточнять)
+          asset: 'TON',
+          recipientAddr: 'UQB_3R--99nmozc5udwoED8J6m4R2pTBRtaV_7BKcs5grnt1',
+          senderAddr,
+          commentToSender: `Premium_${userId}`,
+          commentToRecipient: `Premium_${userId}`,
+        }, {
+          chain: 'mainnet',
+        });
+        return { message: result.message, reference: result.reference };
+      });
+
+      // После успешной оплаты — сообщаем серверу
+      await fetch(apiUrl('/api/confirm-ton-payment'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+
+      alert('✅ Оплата прошла успешно! Premium активирован.');
+      onSubscribe();
+    } catch (e: any) {
+      console.error('❌ TON Pay ошибка:', e);
+      alert('Ошибка оплаты: ' + (e.message || 'Неизвестная ошибка'));
+    } finally {
+      setIsTonLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl">
+        <h2 className="text-2xl font-bold text-stone-900 mb-4">
+          🎉 Разблокируйте всё!
+        </h2>
+        <ul className="space-y-2 text-sm text-stone-700 mb-6">
+          <li>✅ Все 660+ рецептов</li>
+          <li>✅ Безлимитный AI-советник</li>
+          <li>✅ Умный холодильник без ограничений</li>
+          <li>✅ Глобальная лаборатория</li>
+        </ul>
+        <div className="text-center mb-6">
+          <span className="text-3xl font-bold text-amber-600">100 Stars</span>
+          <span className="text-stone-500 text-sm"> (≈1.99$) в месяц</span>
+        </div>
+
+        <div className="space-y-3">
+          {/* Кнопка оплаты Stars */}
+          <button
+            onClick={onSubscribe}
+            className="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 rounded-2xl transition"
+          >
+            Разблокировать за Stars
+          </button>
+
+          {/* Кнопка оплаты TON Pay */}
+          <TonPayButton
+            handlePay={handleTonPay}
+            isLoading={isTonLoading}
+            loadingText="Обработка..."
+            preset="gradient"
+            width="100%"
+            height={48}
+            borderRadius={16}
+          />
+        </div>
+
         <button
           onClick={onClose}
-          className="px-5 py-3 text-stone-500 hover:text-stone-700"
+          className="w-full mt-3 px-5 py-3 text-stone-500 hover:text-stone-700"
         >
           Позже
         </button>
       </div>
     </div>
-  </div>
-);
+  );
+};

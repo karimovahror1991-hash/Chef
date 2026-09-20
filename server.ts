@@ -237,7 +237,66 @@ app.get('/api/check-subscription', async (req, res) => {
     if (!userId) {
       return res.status(400).json({ error: 'User ID не указан' });
     }
+// Проверка статуса подписки
+app.get('/api/check-subscription', async (req, res) => {
+  try {
+    const userId = Number(req.query.userId);
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID не указан' });
+    }
 
+    const result = await pool.query(
+      'SELECT expires_at FROM subscriptions WHERE user_id = $1',
+      [userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ isPremium: false, expiresAt: null });
+    }
+    
+    const expiry = Number(result.rows[0].expires_at);
+    const isPremium = expiry > Date.now();
+    
+    res.json({ 
+      isPremium,
+      expiresAt: new Date(expiry).toISOString()
+    });
+  } catch (error: any) {
+    console.error('Error checking subscription:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ← ВОТ СЮДА ДОБАВЬ НОВЫЙ ЭНДПОИНТ
+
+// Подтверждение оплаты через TON Pay
+app.post('/api/confirm-ton-payment', async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID не указан' });
+    }
+
+    const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
+
+    await pool.query(
+      `INSERT INTO subscriptions (user_id, expires_at) 
+       VALUES ($1, $2) 
+       ON CONFLICT (user_id) 
+       DO UPDATE SET expires_at = $2, updated_at = NOW()`,
+      [userId, expiry]
+    );
+
+    console.log('✅ TON Pay: подписка активирована для', userId);
+
+    res.json({ ok: true, expiresAt: new Date(expiry).toISOString() });
+  } catch (error: any) {
+    console.error('TON Pay error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
     const result = await pool.query(
       'SELECT expires_at FROM subscriptions WHERE user_id = $1',
       [userId]
